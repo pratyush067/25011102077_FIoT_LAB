@@ -1,0 +1,43 @@
+[
+    {
+        "id": "mqtt_broker_emqx",
+        "type": "mqtt-broker",
+        "name": "EMQX Public Broker",
+        "broker": "broker.emqx.io",
+        "port": "1883",
+        "clientid": "NodeRed_IoT_Viewer",
+        "autoConnect": true,
+        "usetls": false,
+        "compatmode": false,
+        "keepalive": "60",
+        "cleansession": true
+    },
+    {
+        "id": "mqtt_in_node",
+        "type": "mqtt in",
+        "z": "tab_mqtt_flow",
+        "name": "Subscribe stm32/test/data",
+        "topic": "stm32/test/data",
+        "qos": "0",
+        "datatype": "json",
+        "broker": "mqtt_broker_emqx",
+        "x": 170,
+        "y": 120,
+        "wires": [["debug_mqtt_console"]]
+    },
+    {
+        "id": "debug_mqtt_console",
+        "type": "debug",
+        "z": "tab_mqtt_flow",
+        "name": "Live MQTT Data",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 450,
+        "y": 120,
+        "wires": []
+    }
+]

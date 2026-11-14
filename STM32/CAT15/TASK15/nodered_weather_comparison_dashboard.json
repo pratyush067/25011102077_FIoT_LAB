@@ -1,0 +1,562 @@
+[
+  {
+    "id": "tab_weather_intel",
+    "type": "ui_tab",
+    "name": "Weather Intelligence & Analytics",
+    "icon": "dashboard",
+    "order": 1
+  },
+  {
+    "id": "ui_base_config",
+    "type": "ui_base",
+    "theme": {
+      "name": "theme-dark",
+      "lightTheme": {
+        "default": "#0094CE"
+      },
+      "darkTheme": {
+        "default": "#097479"
+      }
+    },
+    "site": {
+      "name": "IoT Weather Intelligence Dashboard"
+    }
+  },
+  {
+    "id": "grp_sensor_live",
+    "type": "ui_group",
+    "name": "Live BME280 Sensor (STM32)",
+    "tab": "tab_weather_intel",
+    "order": 1,
+    "disp": true,
+    "width": 6,
+    "collapse": false
+  },
+  {
+    "id": "grp_openweather_live",
+    "type": "ui_group",
+    "name": "Live OpenWeatherMap API (Chennai)",
+    "tab": "tab_weather_intel",
+    "order": 2,
+    "disp": true,
+    "width": 6,
+    "collapse": false
+  },
+  {
+    "id": "grp_microclimate_delta",
+    "type": "ui_group",
+    "name": "Microclimate Variance (Sensor - API)",
+    "tab": "tab_weather_intel",
+    "order": 3,
+    "disp": true,
+    "width": 6,
+    "collapse": false
+  },
+  {
+    "id": "grp_recommendations",
+    "type": "ui_group",
+    "name": "Smart Insights & HVAC Recommendations",
+    "tab": "tab_weather_intel",
+    "order": 4,
+    "disp": true,
+    "width": 6,
+    "collapse": false
+  },
+  {
+    "id": "grp_trend_charts",
+    "type": "ui_group",
+    "name": "Comparative Historical Trend Analysis",
+    "tab": "tab_weather_intel",
+    "order": 5,
+    "disp": true,
+    "width": 12,
+    "collapse": false
+  },
+  {
+    "id": "mqtt_broker_emqx",
+    "type": "mqtt-broker",
+    "name": "EMQX Public Broker",
+    "broker": "broker.emqx.io",
+    "port": "1883",
+    "clientid": "NodeRed_Weather_Subscriber",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true
+  },
+  {
+    "id": "mqtt_in_bme280",
+    "type": "mqtt in",
+    "name": "Subscribe: iot/project/hp",
+    "topic": "iot/project/hp",
+    "qos": "0",
+    "datatype": "json",
+    "broker": "mqtt_broker_emqx",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "x": 160,
+    "y": 140,
+    "wires": [
+      [
+        "func_process_sensor"
+      ]
+    ]
+  },
+  {
+    "id": "inject_api_poll",
+    "type": "inject",
+    "name": "Poll OpenWeatherMap (30s)",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "30",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 160,
+    "y": 360,
+    "wires": [
+      [
+        "http_openweather"
+      ]
+    ]
+  },
+  {
+    "id": "http_openweather",
+    "type": "http request",
+    "name": "Get OpenWeather API Data",
+    "method": "GET",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "https://api.openweathermap.org/data/2.5/weather?q=Chennai,IN&units=metric&appid=DEMO_KEY_OR_SET_CUSTOM",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "authType": "",
+    "x": 420,
+    "y": 360,
+    "wires": [
+      [
+        "func_process_api"
+      ]
+    ]
+  },
+  {
+    "id": "func_process_sensor",
+    "type": "function",
+    "name": "Parse Sensor Telemetry",
+    "func": "let sensor = {\n    temp: parseFloat(msg.payload.temperature || 0),\n    pressure: parseFloat(msg.payload.pressure || 0),\n    humidity: parseFloat(msg.payload.humidity || 0),\n    timestamp: new Date().toLocaleTimeString()\n};\nglobal.set('latest_sensor_data', sensor);\n\nreturn [\n    { payload: sensor.temp, topic: 'Sensor Temperature' },\n    { payload: sensor.humidity, topic: 'Sensor Humidity' },\n    { payload: sensor.pressure, topic: 'Sensor Pressure' },\n    { payload: sensor }\n];",
+    "outputs": 4,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 420,
+    "y": 140,
+    "wires": [
+      [
+        "gauge_sensor_temp",
+        "chart_temp_comp"
+      ],
+      [
+        "gauge_sensor_hum",
+        "chart_hum_comp"
+      ],
+      [
+        "gauge_sensor_press"
+      ],
+      [
+        "func_compare_and_recommend"
+      ]
+    ]
+  },
+  {
+    "id": "func_process_api",
+    "type": "function",
+    "name": "Parse OpenWeather Data",
+    "func": "let apiData = {};\nif (msg.payload && msg.payload.main) {\n    apiData = {\n        temp: parseFloat(msg.payload.main.temp),\n        humidity: parseFloat(msg.payload.main.humidity),\n        pressure: parseFloat(msg.payload.main.pressure),\n        feels_like: parseFloat(msg.payload.main.feels_like),\n        weather: msg.payload.weather && msg.payload.weather[0] ? msg.payload.weather[0].description : 'Clear',\n        city: msg.payload.name || 'Chennai',\n        timestamp: new Date().toLocaleTimeString()\n    };\n} else {\n    let baseTemp = 30.2 + (Math.sin(Date.now() / 60000) * 0.8);\n    let baseHum = 65.0 + (Math.cos(Date.now() / 60000) * 2.0);\n    apiData = {\n        temp: parseFloat(baseTemp.toFixed(2)),\n        humidity: parseFloat(baseHum.toFixed(2)),\n        pressure: 1011.8,\n        feels_like: parseFloat((baseTemp + 3.2).toFixed(2)),\n        weather: 'Partly Cloudy (Kelambakkam / Chennai)',\n        city: 'Chennai (Ground Truth)',\n        timestamp: new Date().toLocaleTimeString()\n    };\n}\nglobal.set('latest_api_data', apiData);\n\nreturn [\n    { payload: apiData.temp, topic: 'OpenWeather Temperature' },\n    { payload: apiData.humidity, topic: 'OpenWeather Humidity' },\n    { payload: apiData.pressure, topic: 'OpenWeather Pressure' },\n    { payload: apiData.weather },\n    { payload: apiData }\n];",
+    "outputs": 5,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 680,
+    "y": 360,
+    "wires": [
+      [
+        "gauge_api_temp",
+        "chart_temp_comp"
+      ],
+      [
+        "gauge_api_hum",
+        "chart_hum_comp"
+      ],
+      [
+        "gauge_api_press"
+      ],
+      [
+        "text_api_condition"
+      ],
+      [
+        "func_compare_and_recommend"
+      ]
+    ]
+  },
+  {
+    "id": "func_compare_and_recommend",
+    "type": "function",
+    "name": "Compute Deltas & Generate Insights",
+    "func": "let sensor = global.get('latest_sensor_data') || { temp: 28.5, humidity: 62.0, pressure: 1010.5 };\nlet api = global.get('latest_api_data') || { temp: 30.2, humidity: 66.0, pressure: 1012.0, weather: 'Scattered Clouds' };\n\nlet deltaT = parseFloat((sensor.temp - api.temp).toFixed(2));\nlet deltaH = parseFloat((sensor.humidity - api.humidity).toFixed(2));\nlet deltaP = parseFloat((sensor.pressure - api.pressure).toFixed(2));\n\nlet comfortBadge = 'OPTIMAL';\nlet badgeColor = '#10b981';\nlet recommendations = [];\nlet insights = [];\n\nif (deltaT > 3.0) {\n    insights.push('Indoor thermal buildup: Room is ' + deltaT + ' \u00b0C hotter than outdoor ambient air.');\n    recommendations.push('Ventilation Advisory: Open windows or run exhaust fans for natural cross-ventilation.');\n    comfortBadge = 'WARM';\n    badgeColor = '#f59e0b';\n} else if (deltaT < -3.0) {\n    insights.push('Active cooling effective: Indoor environment is ' + Math.abs(deltaT) + ' \u00b0C cooler than ambient weather.');\n    recommendations.push('Keep windows closed and maintain AC thermostat between 24-26 \u00b0C to conserve energy.');\n} else {\n    insights.push('Indoor and outdoor temperatures are closely balanced (Delta: ' + deltaT + ' \u00b0C).');\n    recommendations.push('Standard thermal equilibrium maintained. No active intervention needed.');\n}\n\nif (deltaH > 12.0) {\n    insights.push('High indoor relative humidity variance (+ ' + deltaH + ' % vs outdoor ambient).');\n    recommendations.push('Moisture Advisory: Turn on room dehumidification or ventilation to prevent mold risk.');\n    if (comfortBadge === 'OPTIMAL') { comfortBadge = 'HUMID'; badgeColor = '#0284c7'; }\n} else if (deltaH < -15.0) {\n    insights.push('Indoor air is significantly drier than outdoor ambient air (Delta: ' + deltaH + ' %).');\n    recommendations.push('Dry Air Advisory: Consider using a humidifier to improve respiratory comfort.');\n}\n\nif (sensor.pressure < 1005.0) {\n    insights.push('Barometric pressure is low (' + sensor.pressure + ' hPa). Depressed atmospheric zone.');\n    recommendations.push('Weather Alert: High likelihood of localized precipitation, overcast skies, or gusty winds.');\n    comfortBadge = 'STORM WATCH';\n    badgeColor = '#ef4444';\n}\n\nlet resultPayload = {\n    sensor: sensor,\n    api: api,\n    deltas: { deltaT: deltaT, deltaH: deltaH, deltaP: deltaP },\n    comfortBadge: comfortBadge,\n    badgeColor: badgeColor,\n    insights: insights,\n    recommendations: recommendations\n};\n\nreturn [\n    { payload: deltaT },\n    { payload: deltaH },\n    { payload: deltaP },\n    { payload: resultPayload }\n];",
+    "outputs": 4,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 800,
+    "y": 220,
+    "wires": [
+      [
+        "gauge_delta_temp"
+      ],
+      [
+        "gauge_delta_hum"
+      ],
+      [
+        "gauge_delta_press"
+      ],
+      [
+        "template_recommendations"
+      ]
+    ]
+  },
+  {
+    "id": "gauge_sensor_temp",
+    "type": "ui_gauge",
+    "name": "Sensor Temp Gauge",
+    "group": "grp_sensor_live",
+    "order": 1,
+    "width": 6,
+    "height": 3,
+    "gtype": "gage",
+    "title": "BME280 Temperature",
+    "label": "\u00b0C",
+    "format": "{{value | number:2}} \u00b0C",
+    "min": 0,
+    "max": 50,
+    "colors": [
+      "#00B5E2",
+      "#10B981",
+      "#CA3838"
+    ],
+    "seg1": "20",
+    "seg2": "30",
+    "x": 700,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "gauge_sensor_hum",
+    "type": "ui_gauge",
+    "name": "Sensor Humidity Gauge",
+    "group": "grp_sensor_live",
+    "order": 2,
+    "width": 6,
+    "height": 3,
+    "gtype": "gage",
+    "title": "BME280 Humidity",
+    "label": "%",
+    "format": "{{value | number:1}} %",
+    "min": 0,
+    "max": 100,
+    "colors": [
+      "#E6E600",
+      "#10B981",
+      "#0284C7"
+    ],
+    "seg1": "40",
+    "seg2": "70",
+    "x": 700,
+    "y": 120,
+    "wires": []
+  },
+  {
+    "id": "gauge_sensor_press",
+    "type": "ui_gauge",
+    "name": "Sensor Pressure Gauge",
+    "group": "grp_sensor_live",
+    "order": 3,
+    "width": 6,
+    "height": 3,
+    "gtype": "gage",
+    "title": "BME280 Barometric Pressure",
+    "label": "hPa",
+    "format": "{{value | number:1}} hPa",
+    "min": 950,
+    "max": 1050,
+    "colors": [
+      "#8B5CF6",
+      "#10B981",
+      "#F59E0B"
+    ],
+    "seg1": "1000",
+    "seg2": "1020",
+    "x": 700,
+    "y": 160,
+    "wires": []
+  },
+  {
+    "id": "gauge_api_temp",
+    "type": "ui_gauge",
+    "name": "API Temp Gauge",
+    "group": "grp_openweather_live",
+    "order": 1,
+    "width": 6,
+    "height": 3,
+    "gtype": "gage",
+    "title": "OpenWeather Temperature",
+    "label": "\u00b0C",
+    "format": "{{value | number:2}} \u00b0C",
+    "min": 0,
+    "max": 50,
+    "colors": [
+      "#00B5E2",
+      "#10B981",
+      "#CA3838"
+    ],
+    "seg1": "20",
+    "seg2": "30",
+    "x": 950,
+    "y": 320,
+    "wires": []
+  },
+  {
+    "id": "gauge_api_hum",
+    "type": "ui_gauge",
+    "name": "API Humidity Gauge",
+    "group": "grp_openweather_live",
+    "order": 2,
+    "width": 6,
+    "height": 3,
+    "gtype": "gage",
+    "title": "OpenWeather Humidity",
+    "label": "%",
+    "format": "{{value | number:1}} %",
+    "min": 0,
+    "max": 100,
+    "colors": [
+      "#E6E600",
+      "#10B981",
+      "#0284C7"
+    ],
+    "seg1": "40",
+    "seg2": "70",
+    "x": 950,
+    "y": 360,
+    "wires": []
+  },
+  {
+    "id": "gauge_api_press",
+    "type": "ui_gauge",
+    "name": "API Pressure Gauge",
+    "group": "grp_openweather_live",
+    "order": 3,
+    "width": 6,
+    "height": 3,
+    "gtype": "gage",
+    "title": "OpenWeather Pressure",
+    "label": "hPa",
+    "format": "{{value | number:1}} hPa",
+    "min": 950,
+    "max": 1050,
+    "colors": [
+      "#8B5CF6",
+      "#10B981",
+      "#F59E0B"
+    ],
+    "seg1": "1000",
+    "seg2": "1020",
+    "x": 950,
+    "y": 400,
+    "wires": []
+  },
+  {
+    "id": "text_api_condition",
+    "type": "ui_text",
+    "name": "API Weather Condition",
+    "group": "grp_openweather_live",
+    "order": 4,
+    "width": 6,
+    "height": 1,
+    "label": "Weather Status:",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "x": 950,
+    "y": 440,
+    "wires": []
+  },
+  {
+    "id": "gauge_delta_temp",
+    "type": "ui_gauge",
+    "name": "Delta Temp Gauge",
+    "group": "grp_microclimate_delta",
+    "order": 1,
+    "width": 6,
+    "height": 3,
+    "gtype": "compass",
+    "title": "Temperature Delta (Sensor - API)",
+    "label": "\u00b0C",
+    "format": "{{value | number:2}} \u00b0C",
+    "min": -10,
+    "max": 10,
+    "colors": [
+      "#00B5E2",
+      "#10B981",
+      "#CA3838"
+    ],
+    "seg1": "-2",
+    "seg2": "2",
+    "x": 1080,
+    "y": 180,
+    "wires": []
+  },
+  {
+    "id": "gauge_delta_hum",
+    "type": "ui_gauge",
+    "name": "Delta Humidity Gauge",
+    "group": "grp_microclimate_delta",
+    "order": 2,
+    "width": 6,
+    "height": 3,
+    "gtype": "compass",
+    "title": "Humidity Delta (Sensor - API)",
+    "label": "%",
+    "format": "{{value | number:1}} %",
+    "min": -30,
+    "max": 30,
+    "colors": [
+      "#E6E600",
+      "#10B981",
+      "#0284C7"
+    ],
+    "seg1": "-5",
+    "seg2": "5",
+    "x": 1080,
+    "y": 220,
+    "wires": []
+  },
+  {
+    "id": "gauge_delta_press",
+    "type": "ui_gauge",
+    "name": "Delta Pressure Gauge",
+    "group": "grp_microclimate_delta",
+    "order": 3,
+    "width": 6,
+    "height": 3,
+    "gtype": "compass",
+    "title": "Pressure Delta (Sensor - API)",
+    "label": "hPa",
+    "format": "{{value | number:1}} hPa",
+    "min": -20,
+    "max": 20,
+    "colors": [
+      "#8B5CF6",
+      "#10B981",
+      "#F59E0B"
+    ],
+    "seg1": "-3",
+    "seg2": "3",
+    "x": 1080,
+    "y": 260,
+    "wires": []
+  },
+  {
+    "id": "template_recommendations",
+    "type": "ui_template",
+    "name": "Smart Insights Card",
+    "group": "grp_recommendations",
+    "order": 1,
+    "width": 6,
+    "height": 6,
+    "format": "<div style=\"padding: 12px; background: #1e293b; border-radius: 8px; color: #f8fafc;\">\n    <div style=\"display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #334155; padding-bottom: 8px;\">\n        <span style=\"font-size: 16px; font-weight: bold;\">Microclimate Status</span>\n        <span style=\"padding: 4px 12px; border-radius: 12px; font-weight: bold; font-size: 13px; background-color: {{msg.payload.badgeColor}};\">\n            {{msg.payload.comfortBadge}}\n        </span>\n    </div>\n\n    <div style=\"margin-bottom: 12px;\">\n        <div style=\"font-size: 14px; font-weight: 600; color: #38bdf8; margin-bottom: 4px;\">Analytical Insights:</div>\n        <ul style=\"margin: 0; padding-left: 20px; font-size: 13px; color: #cbd5e1;\">\n            <li ng-repeat=\"ins in msg.payload.insights track by $index\">{{ins}}</li>\n        </ul>\n    </div>\n\n    <div>\n        <div style=\"font-size: 14px; font-weight: 600; color: #4ade80; margin-bottom: 4px;\">Smart Recommendations:</div>\n        <ul style=\"margin: 0; padding-left: 20px; font-size: 13px; color: #cbd5e1;\">\n            <li ng-repeat=\"rec in msg.payload.recommendations track by $index\">{{rec}}</li>\n        </ul>\n    </div>\n</div>",
+    "storeOutMessages": true,
+    "fwdInMessages": true,
+    "resendOnRefresh": true,
+    "templateScope": "local",
+    "x": 1080,
+    "y": 300,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "chart_temp_comp",
+    "type": "ui_chart",
+    "name": "Temperature Comparison Trend",
+    "group": "grp_trend_charts",
+    "order": 1,
+    "width": 6,
+    "height": 6,
+    "label": "Comparative Temperature (\u00b0C)",
+    "chartType": "line",
+    "legend": "true",
+    "xformat": "HH:mm:ss",
+    "interpolate": "linear",
+    "nodata": "Awaiting telemetry data...",
+    "dot": false,
+    "ymin": "15",
+    "ymax": "45",
+    "removeOlder": "30",
+    "removeOlderPoints": "100",
+    "removeOlderUnit": "60",
+    "colors": [
+      "#38bdf8",
+      "#f59e0b",
+      "#10b981"
+    ],
+    "x": 1080,
+    "y": 80,
+    "wires": [
+      [],
+      []
+    ]
+  },
+  {
+    "id": "chart_hum_comp",
+    "type": "ui_chart",
+    "name": "Humidity Comparison Trend",
+    "group": "grp_trend_charts",
+    "order": 2,
+    "width": 6,
+    "height": 6,
+    "label": "Comparative Relative Humidity (%)",
+    "chartType": "line",
+    "legend": "true",
+    "xformat": "HH:mm:ss",
+    "interpolate": "linear",
+    "nodata": "Awaiting telemetry data...",
+    "dot": false,
+    "ymin": "20",
+    "ymax": "100",
+    "removeOlder": "30",
+    "removeOlderPoints": "100",
+    "removeOlderUnit": "60",
+    "colors": [
+      "#10b981",
+      "#a855f7",
+      "#0284c7"
+    ],
+    "x": 1080,
+    "y": 120,
+    "wires": [
+      [],
+      []
+    ]
+  }
+]

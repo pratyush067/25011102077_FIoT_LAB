@@ -1,0 +1,28 @@
+--cpu=Cortex-M4.fp.sp
+"iot_project\startup_stm32f401xe.o"
+"iot_project\esplib.o"
+"iot_project\bme280.o"
+"iot_project\main.o"
+"iot_project\stm32f4xx_it.o"
+"iot_project\stm32f4xx_hal_msp.o"
+"iot_project\stm32f4xx_hal_i2c.o"
+"iot_project\stm32f4xx_hal_i2c_ex.o"
+"iot_project\stm32f4xx_hal_rcc.o"
+"iot_project\stm32f4xx_hal_rcc_ex.o"
+"iot_project\stm32f4xx_hal_flash.o"
+"iot_project\stm32f4xx_hal_flash_ex.o"
+"iot_project\stm32f4xx_hal_flash_ramfunc.o"
+"iot_project\stm32f4xx_hal_gpio.o"
+"iot_project\stm32f4xx_hal_dma_ex.o"
+"iot_project\stm32f4xx_hal_dma.o"
+"iot_project\stm32f4xx_hal_pwr.o"
+"iot_project\stm32f4xx_hal_pwr_ex.o"
+"iot_project\stm32f4xx_hal_cortex.o"
+"iot_project\stm32f4xx_hal.o"
+"iot_project\stm32f4xx_hal_exti.o"
+"iot_project\stm32f4xx_hal_uart.o"
+"iot_project\system_stm32f4xx.o"
+--strict --scatter "IOT_project\IOT_project.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "IOT_project.map" -o IOT_project\IOT_project.axf

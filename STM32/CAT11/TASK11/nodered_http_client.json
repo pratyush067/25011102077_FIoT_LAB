@@ -1,0 +1,61 @@
+[
+    {
+        "id": "inject_timer",
+        "type": "inject",
+        "z": "http_client_flow",
+        "name": "Poll STM32 (Every 5s)",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "5",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 160,
+        "y": 140,
+        "wires": [["http_request_stm32"]]
+    },
+    {
+        "id": "http_request_stm32",
+        "type": "http request",
+        "z": "http_client_flow",
+        "name": "GET / from STM32 Server",
+        "method": "GET",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "http://192.168.1.105/",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 420,
+        "y": 140,
+        "wires": [["debug_http_output"]]
+    },
+    {
+        "id": "debug_http_output",
+        "type": "debug",
+        "z": "http_client_flow",
+        "name": "STM32 Web Response",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 680,
+        "y": 140,
+        "wires": []
+    }
+]
+

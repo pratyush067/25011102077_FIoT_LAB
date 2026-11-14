@@ -1,0 +1,56 @@
+[
+    {
+        "id": "poll_timer",
+        "type": "inject",
+        "z": "tab_bme280",
+        "name": "Poll Sensor (2s)",
+        "repeat": "2",
+        "once": true,
+        "x": 140,
+        "y": 100,
+        "wires": [["get_sensor_data"]]
+    },
+    {
+        "id": "get_sensor_data",
+        "type": "http request",
+        "z": "tab_bme280",
+        "name": "GET BME280 JSON",
+        "method": "GET",
+        "ret": "obj",
+        "url": "http://192.168.1.105/",
+        "x": 370,
+        "y": 100,
+        "wires": [["calc_stats", "debug_output"]]
+    },
+    {
+        "id": "calc_stats",
+        "type": "function",
+        "z": "tab_bme280",
+        "name": "Calculate Min/Max/Avg",
+        "func": "let stats = flow.get('bme_stats') || {\n  t_min: 999, t_max: -999, t_sum: 0, count: 0,\n  h_min: 999, h_max: -999, h_sum: 0,\n  p_min: 9999, p_max: -9999, p_sum: 0\n};\n\nlet d = msg.payload;\nstats.count++;\n\nstats.t_min = Math.min(stats.t_min, d.temperature);\nstats.t_max = Math.max(stats.t_max, d.temperature);\nstats.t_sum += d.temperature;\n\nstats.h_min = Math.min(stats.h_min, d.humidity);\nstats.h_max = Math.max(stats.h_max, d.humidity);\nstats.h_sum += d.humidity;\n\nstats.p_min = Math.min(stats.p_min, d.pressure);\nstats.p_max = Math.max(stats.p_max, d.pressure);\nstats.p_sum += d.pressure;\n\nflow.set('bme_stats', stats);\n\nmsg.payload = {\n  Temperature: { min: stats.t_min, max: stats.t_max, avg: +(stats.t_sum / stats.count).toFixed(2) },\n  Humidity: { min: stats.h_min, max: stats.h_max, avg: +(stats.h_sum / stats.count).toFixed(2) },\n  Pressure: { min: stats.p_min, max: stats.p_max, avg: +(stats.p_sum / stats.count).toFixed(2) }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 620,
+        "y": 100,
+        "wires": [["debug_stats"]]
+    },
+    {
+        "id": "debug_output",
+        "type": "debug",
+        "z": "tab_bme280",
+        "name": "Live Telemetry",
+        "active": true,
+        "x": 600,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "debug_stats",
+        "type": "debug",
+        "z": "tab_bme280",
+        "name": "Cumulative Stats",
+        "active": true,
+        "x": 840,
+        "y": 100,
+        "wires": []
+    }
+]
